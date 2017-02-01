@@ -10,7 +10,7 @@ class Uatu {
 
   launch() {
     this.hosts.forEach(host => logInfo(host, this.infoKeys, this.callback));
-    setTimeout(this.launch, this.interval);
+    setTimeout(() => this.launch(), this.interval);
   }
 }
 
