@@ -1,15 +1,11 @@
 const winston = require('winston');
 const json2csv = require('json2csv');
-
-const Uatu = require('../src/index');
+const uatu = require('../src/index');
 
 // Array of all redis instance addresses
 const hosts = [
   '0.0.0.0'
 ];
-
-// Interval of a minute
-const interval = 300000;
 
 // keys (or name of data) we are matching for inside `info`
 const infoKeys = [
@@ -32,6 +28,7 @@ winston.remove(winston.transports.Console);
 const callback = (err, record) => {
   const fields = [
     'timestamp',
+    'host',
     'used_memory',
     'used_memory_human',
     'db0',
@@ -48,11 +45,4 @@ const callback = (err, record) => {
   winston.log('info', csv);
 };
 
-const monitor = new Uatu({
-  hosts,
-  interval,
-  infoKeys,
-  callback,
-});
-
-monitor.launch();
+uatu({ hosts, infoKeys, callback }).monitor();
