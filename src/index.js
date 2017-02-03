@@ -6,14 +6,12 @@ const parseInfo = require('./parseInfo');
 class Uatu {
   constructor({ instances }) {
     // Bind methods to "this" (just in case)
-    this.end = this.end.bind(this);
     this.getInfo = this.getInfo.bind(this);
     this.makeConnection = this.makeConnection.bind(this);
-    this.closeConnection = this.closeConnection.bind(this);
     this.forEachInstance = this.forEachInstance.bind(this);
 
     // Containers for our errors and instances
-    this.instances = instances.map(this.makeConnection);
+    this.instances = instances;
   }
 
   makeConnection(instance) {
@@ -29,7 +27,12 @@ class Uatu {
         redis.disconnect();
 
         // Reject with the error
-        reject(new Error(`Connection failed for ${label} (${host})`));
+        reject({
+          host,
+          label,
+          description,
+          error: new Error(`Connection failed for ${label} (${description})`),
+        });
       });
 
       redis.on('connect', () => {
@@ -39,22 +42,16 @@ class Uatu {
     });
   }
 
-  closeConnection(callback) {
-    return (instance) => {
-      // Get our properties
-      const { host, label, description, redis } = instance;
-
-      // Use the callback after disconnecting and pass the host, label, description
-      redis.disconnect(callback({ host, label, description }));
-    };
-  }
-
   forEachInstance(resolve, reject) {
-    this.instances.map(promise => promise.then(resolve, reject));
+    // map the instances to connections, and then map those promises
+    // to resolve and reject functions
+    this.instances
+      .map(this.makeConnection)
+      .map(promise => promise.then(resolve, reject));
   }
 
-  getInfo(keys, callback) {
-    this.forEachInstance(({ host, label, description, redis }) => {
+  getInfo(keys, resolve, reject) {
+    const instanceResolve = ({ host, label, description, redis }) => {
       redis.info((err, info) => {
         // Set the record object
         const record = {
@@ -72,19 +69,17 @@ class Uatu {
           }
         }
 
-        // We are calling the callback with null and the merged record
-        // with the parsed info by the keys
-        callback(null, Object.assign(record, parseInfo(info, keys)));
+        // We are calling the resolve callback with the merged record and parsed info
+        resolve(Object.assign(record, parseInfo(info, keys)));
+
+        redis.disconnect();
       });
-    });
+    };
 
-    return this;
-  }
+    const instanceReject = (err) => reject(err);
 
-  end(resolve, reject) {
-    // Iterate over all instances, close the connections and use callback
-    // in case there were errors, use the "reject" callback
-    this.forEachInstance(this.closeConnection(resolve), reject);
+    // Iterate over all instances, in case there were errors, use the "reject" callback
+    this.forEachInstance(instanceResolve, instanceReject);
   }
 }
 
