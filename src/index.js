@@ -3,43 +3,89 @@ const Redis = require('ioredis');
 
 const parseInfo = require('./parseInfo');
 
-module.exports = (options) => {
-  // get our options values
-  const { instances } = options;
+class Uatu {
+  constructor({ instances }) {
+    // Bind methods to "this" (just in case)
+    this.end = this.end.bind(this);
+    this.getInfo = this.getInfo.bind(this);
+    this.makeConnection = this.makeConnection.bind(this);
+    this.closeConnection = this.closeConnection.bind(this);
+    this.forEachInstance = this.forEachInstance.bind(this);
 
-  return {
-    getInfo: (keys, callback) => {
-      // Iterate over all the instances
-      instances.forEach(({ host, label, description }) => {
-        const redis = new Redis({ host });
+    // Containers for our errors and instances
+    this.instances = instances.map(this.makeConnection);
+  }
 
-        redis.info((err, info) => {
-          // Set the record object
-          const record = {
-            timestamp: moment().startOf('minute').toISOString(),
-            host,
-            label,
-            description,
-          };
+  makeConnection(instance) {
+    // We return the promise of a connection...
+    return new Promise((resolve, reject) => {
+      const { host, label, description } = instance;
 
-          if (err) {
-            try {
-              record.error = err.toString();
-            } catch (e) {
-              record.error = e.toString();
-            }
-          }
+      // Make redis connection object
+      const redis = new Redis({ host });
 
-          // We are calling the callback with null and the merged record
-          // with the parsed info by the keys
-          callback(null, Object.assign(record, parseInfo(info, keys)));
+      redis.on('error', () => {
+        // We don't want to do retries because we don't have a way to handle them atm
+        redis.disconnect();
 
-          // Disconnect our Redis instance
-          redis.disconnect();
-        });
+        // Reject with the error
+        reject(new Error(`Connection failed for ${label} (${host})`));
       });
 
-      return this;
-    },
-  };
-};
+      redis.on('connect', () => {
+        // Resolve with a redis connection with other properties
+        resolve({ redis, description, host, label });
+      });
+    });
+  }
+
+  closeConnection(callback) {
+    return (instance) => {
+      // Get our properties
+      const { host, label, description, redis } = instance;
+
+      // Use the callback after disconnecting and pass the host, label, description
+      redis.disconnect(callback({ host, label, description }));
+    };
+  }
+
+  forEachInstance(resolve, reject) {
+    this.instances.map(promise => promise.then(resolve, reject));
+  }
+
+  getInfo(keys, callback) {
+    this.forEachInstance(({ host, label, description, redis }) => {
+      redis.info((err, info) => {
+        // Set the record object
+        const record = {
+          timestamp: moment().startOf('minute').toISOString(),
+          host,
+          label,
+          description,
+        };
+
+        if (err) {
+          try {
+            record.error = err.toString();
+          } catch (e) {
+            record.error = e.toString();
+          }
+        }
+
+        // We are calling the callback with null and the merged record
+        // with the parsed info by the keys
+        callback(null, Object.assign(record, parseInfo(info, keys)));
+      });
+    });
+
+    return this;
+  }
+
+  end(resolve, reject) {
+    // Iterate over all instances, close the connections and use callback
+    // in case there were errors, use the "reject" callback
+    this.forEachInstance(this.closeConnection(resolve), reject);
+  }
+}
+
+module.exports = Uatu;
