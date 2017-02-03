@@ -1,6 +1,7 @@
 const winston = require('winston');
 const json2csv = require('json2csv');
-const uatu = require('../src/index');
+
+const Uatu = require('../src/index');
 
 // Array of all redis instance addresses
 const instances = [
@@ -48,4 +49,7 @@ const callback = (err, record) => {
   winston.log('info', csv);
 };
 
-uatu({ instances }).getInfo(keys, callback);
+const uatu = new Uatu({ instances });
+
+// Must call `end()` to clear connections
+uatu.getInfo(keys, callback).end(instance => console.log(instance), err => console.log(err));
