@@ -3,12 +3,15 @@ const json2csv = require('json2csv');
 const uatu = require('../src/index');
 
 // Array of all redis instance addresses
-const hosts = [
-  '0.0.0.0'
+const instances = [
+  {
+    host: '0.0.0.0',
+    label: 'Test',
+  },
 ];
 
 // keys (or name of data) we are matching for inside `info`
-const infoKeys = [
+const keys = [
   'used_memory',
   'used_memory_human',
   'db0',
@@ -45,4 +48,4 @@ const callback = (err, record) => {
   winston.log('info', csv);
 };
 
-uatu({ hosts, infoKeys, callback }).monitor();
+uatu({ instances }).getInfo(keys, callback);
