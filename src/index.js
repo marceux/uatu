@@ -67,10 +67,13 @@ class Uatu {
           } catch (e) {
             record.error = e.toString();
           }
-        }
 
-        // We are calling the resolve callback with the merged record and parsed info
-        resolve(Object.assign(record, parseInfo(info, keys)));
+          // Reject with the record and error
+          reject(record);
+        } else {
+          // We are calling the resolve callback with the merged record and parsed info
+          resolve(Object.assign(record, parseInfo(info, keys)));
+        }
 
         redis.disconnect();
       });
