@@ -51,5 +51,5 @@ const callback = (err, record) => {
 
 const uatu = new Uatu({ instances });
 
-// Must call `end()` to clear connections
-uatu.getInfo(keys, callback).end(instance => console.log(instance), err => console.log(err));
+// Must call getInfo with a resolve callback and a reject callback
+uatu.getInfo(keys, instance => console.log(instance), err => console.log(err));
